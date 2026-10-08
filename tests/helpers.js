@@ -1,7 +1,7 @@
 import request from 'supertest';
 import app from '../src/app.js';
 import { pool } from '../src/db.js';
-import { redis, connectRedis } from '../src/redis.js';
+import { redis, connectRedis, cache } from '../src/redis.js';
 import { migrate } from '../scripts/migrate.js';
 
 export const ADMIN = { 'X-Admin-Key': 'test-admin-key' };
@@ -15,12 +15,21 @@ export async function reset() {
   await pool.query(
     'TRUNCATE users, products, cart_items, orders, order_items, idempotency_keys RESTART IDENTITY CASCADE'
   );
-  if (redis.status === 'ready') await redis.flushdb();
+  if (redis.status === 'ready') {
+    await redis.flushdb();
+  } else {
+    cache.flush();
+  }
 }
 
 export async function teardown() {
   await pool.end();
-  await redis.quit().catch(() => {});
+  cache.flush();
+  if (redis.status === 'ready') {
+    await redis.quit().catch(() => {});
+  } else {
+    redis.disconnect();
+  }
 }
 
 export const createProduct = async (stock, extra = {}) =>
