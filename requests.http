@@ -1,0 +1,55 @@
+### Try the API with the "REST Client" VS Code extension (click "Send Request").
+### Start the app first (npm start) and run: npm run migrate && npm run seed
+
+@base = http://localhost:3000
+@admin = dev-admin-key
+
+### Health
+GET {{base}}/health
+
+### Create a user
+POST {{base}}/users
+Content-Type: application/json
+
+{ "name": "Harshit", "email": "harshit@example.com" }
+
+### Create a flash-sale product (admin)
+POST {{base}}/products
+Content-Type: application/json
+X-Admin-Key: {{admin}}
+
+{ "name": "Limited Edition Sneakers", "priceCents": 499900, "stock": 3 }
+
+### List products (look at the X-Cache response header: MISS then HIT)
+GET {{base}}/products
+
+### Get one product
+GET {{base}}/products/1
+
+### Add 1 unit to user 1's cart
+PUT {{base}}/cart/items/1
+Content-Type: application/json
+X-User-Id: 1
+
+{ "quantity": 1 }
+
+### View cart
+GET {{base}}/cart
+X-User-Id: 1
+
+### Checkout (run it twice with the SAME key: 2nd response has Idempotent-Replay: true)
+POST {{base}}/checkout
+X-User-Id: 1
+Idempotency-Key: my-first-order-001
+
+### My orders
+GET {{base}}/orders
+X-User-Id: 1
+
+### Cancel order 1 (stock goes back)
+POST {{base}}/orders/1/cancel
+X-User-Id: 1
+
+### Audit inventory invariant (admin)
+GET {{base}}/admin/products/1/audit
+X-Admin-Key: {{admin}}
