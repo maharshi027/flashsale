@@ -1,9 +1,9 @@
-require('dotenv').config();
+import 'dotenv/config';
 
 const int = (value, fallback) =>
   value === undefined || value === '' ? fallback : parseInt(value, 10);
 
-module.exports = {
+export const config = {
   env: process.env.NODE_ENV || 'development',
   port: int(process.env.PORT, 3000),
   databaseUrl:
@@ -19,3 +19,5 @@ module.exports = {
     max: int(process.env.RATE_LIMIT_MAX, 30),
   },
 };
+
+export default config;
