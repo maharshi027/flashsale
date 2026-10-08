@@ -1,8 +1,8 @@
-const config = require('../config');
-const { pool } = require('../db');
-const { cache } = require('../redis');
-const { AppError } = require('../errors');
-const soldOut = require('./soldOut');
+import config from '../config.js';
+import { pool } from '../db.js';
+import { cache } from '../redis.js';
+import { AppError } from '../errors.js';
+import soldOut from './soldOut.js';
 
 const toDto = (r) => ({
   id: r.id,
@@ -15,11 +15,11 @@ const toDto = (r) => ({
 const productKey = (id) => `product:${id}`;
 const LIST_KEY = 'products:list';
 
-async function invalidate(productIds) {
+export async function invalidate(productIds) {
   await cache.del(LIST_KEY, ...productIds.map(productKey));
 }
 
-async function create({ name, description, priceCents, stock }) {
+export async function create({ name, description, priceCents, stock }) {
   const { rows } = await pool.query(
     `INSERT INTO products (name, description, price_cents, stock)
      VALUES ($1, $2, $3, $4) RETURNING *`,
@@ -30,7 +30,7 @@ async function create({ name, description, priceCents, stock }) {
 }
 
 /** Admin update (price and/or stock). Restocking also clears the sold-out flag. */
-async function update(id, { priceCents, stock }) {
+export async function update(id, { priceCents, stock }) {
   const { rows } = await pool.query(
     `UPDATE products
         SET price_cents = COALESCE($2, price_cents),
@@ -46,7 +46,7 @@ async function update(id, { priceCents, stock }) {
 }
 
 /** Cache-aside read. Returns { product, cacheHit }. Stock shown here is approximate. */
-async function getById(id, { bypassCache = false } = {}) {
+export async function getById(id, { bypassCache = false } = {}) {
   if (!bypassCache) {
     const cached = await cache.getJson(productKey(id));
     if (cached) return { product: cached, cacheHit: true };
@@ -58,7 +58,7 @@ async function getById(id, { bypassCache = false } = {}) {
   return { product, cacheHit: false };
 }
 
-async function list() {
+export async function list() {
   const cached = await cache.getJson(LIST_KEY);
   if (cached) return { products: cached, cacheHit: true };
   const { rows } = await pool.query('SELECT * FROM products ORDER BY id');
@@ -68,7 +68,7 @@ async function list() {
 }
 
 /** Admin audit: lets you PROVE the inventory invariant after a load test. */
-async function audit(id) {
+export async function audit(id) {
   const { rows } = await pool.query(
     `SELECT p.id, p.stock,
             COALESCE(SUM(oi.quantity) FILTER (WHERE o.status = 'CONFIRMED'), 0)::int AS confirmed_units,
@@ -92,4 +92,4 @@ async function audit(id) {
   };
 }
 
-module.exports = { create, update, getById, list, audit, invalidate };
+export default { create, update, getById, list, audit, invalidate };

@@ -1,7 +1,7 @@
-const { pool, withTransaction } = require('../db');
-const { AppError } = require('../errors');
-const soldOut = require('./soldOut');
-const productService = require('./productService');
+import { pool, withTransaction } from '../db.js';
+import { AppError } from '../errors.js';
+import soldOut from './soldOut.js';
+import productService from './productService.js';
 
 /**
  * CHECKOUT - the heart of the project.
@@ -17,7 +17,7 @@ const productService = require('./productService');
  *  4. IDEMPOTENT      : the same (user, Idempotency-Key) can never create two orders.
  *                       Retries / double-clicks / network timeouts get the original response.
  */
-async function checkout(userId, idempotencyKey) {
+export async function checkout(userId, idempotencyKey) {
   // Cheap pre-check (Redis only): skip the DB entirely if an item is already known to be sold out.
   const { rows: preCart } = await pool.query(
     'SELECT product_id FROM cart_items WHERE user_id = $1',
@@ -146,7 +146,7 @@ async function runCheckout(client, userId, idempotencyKey) {
   return { replay: false, statusCode: 201, body, productIds: ids, nowSoldOut };
 }
 
-async function listOrders(userId) {
+export async function listOrders(userId) {
   const { rows } = await pool.query(
     `SELECT id, status, total_cents, created_at FROM orders
       WHERE user_id = $1 ORDER BY created_at DESC, id DESC LIMIT 50`,
@@ -160,7 +160,7 @@ async function listOrders(userId) {
   }));
 }
 
-async function getOrder(userId, orderId) {
+export async function getOrder(userId, orderId) {
   const { rows } = await pool.query(
     'SELECT id, status, total_cents, created_at, cancelled_at FROM orders WHERE id = $1 AND user_id = $2',
     [orderId, userId]
@@ -191,7 +191,7 @@ async function getOrder(userId, orderId) {
  * Cancels an order and returns the units to stock - atomically.
  * Locking the ORDER row first means two concurrent cancels cannot both restock.
  */
-async function cancelOrder(userId, orderId) {
+export async function cancelOrder(userId, orderId) {
   const result = await withTransaction(async (client) => {
     const { rows } = await client.query(
       'SELECT id, status FROM orders WHERE id = $1 AND user_id = $2 FOR UPDATE',
@@ -225,4 +225,4 @@ async function cancelOrder(userId, orderId) {
   return getOrder(userId, orderId);
 }
 
-module.exports = { checkout, listOrders, getOrder, cancelOrder };
+export default { checkout, listOrders, getOrder, cancelOrder };

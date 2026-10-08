@@ -1,7 +1,7 @@
-const app = require('./app');
-const config = require('./config');
-const { pool } = require('./db');
-const { redis, connectRedis } = require('./redis');
+import app from './app.js';
+import config from './config.js';
+import { pool } from './db.js';
+import { redis, connectRedis } from './redis.js';
 
 async function main() {
   await pool.query('SELECT 1'); // fail fast if the database is unreachable

@@ -1,3 +1,5 @@
+import 'dotenv/config';
+
 /**
  * Flash-sale simulator.
  *   npm run simulate                       (defaults: 500 buyers, 50 units)
@@ -28,21 +30,25 @@ async function api(method, path, { headers = {}, body } = {}) {
 
 const percentile = (sorted, p) => sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))];
 
-async function main() {
-  console.log(`Flash sale: ${BUYERS} buyers racing for ${STOCK} units (duplicate-click rate ${DUP_RATE * 100}%)\n`);
+export async function runSimulation(options = {}) {
+  const buyersCount = options.buyers || BUYERS;
+  const stockCount = options.stock || STOCK;
+  const dupRate = options.dupRate !== undefined ? options.dupRate : DUP_RATE;
+
+  console.log(`Flash sale: ${buyersCount} buyers racing for ${stockCount} units (duplicate-click rate ${dupRate * 100}%)\n`);
   const run = Date.now();
 
   const product = (
     await api('POST', '/products', {
       headers: { 'X-Admin-Key': ADMIN_KEY },
-      body: { name: `Flash Item ${run}`, priceCents: 9900, stock: STOCK },
+      body: { name: `Flash Item ${run}`, priceCents: 9900, stock: stockCount },
     })
   ).json;
   if (!product.id) throw new Error('Could not create product - is the API running? ' + JSON.stringify(product));
 
   // Setup: create users and fill carts (not part of the measured phase)
   const users = await Promise.all(
-    Array.from({ length: BUYERS }, (_, i) =>
+    Array.from({ length: buyersCount }, (_, i) =>
       api('POST', '/users', { body: { name: `Sim ${i}`, email: `sim-${run}-${i}@example.com` } }).then((r) => r.json)
     )
   );
@@ -59,7 +65,7 @@ async function main() {
     const key = `sim-${run}-${u.id}`;
     const send = () => api('POST', '/checkout', { headers: { 'X-User-Id': String(u.id), 'Idempotency-Key': key } });
     attempts.push(send());
-    if (Math.random() < DUP_RATE) attempts.push(send()); // the impatient double-click
+    if (Math.random() < dupRate) attempts.push(send()); // the impatient double-click
   }
   const results = await Promise.all(attempts);
   const elapsedSec = (performance.now() - t0) / 1000;
@@ -84,21 +90,42 @@ async function main() {
   console.log(`Throughput              : ${(results.length / elapsedSec).toFixed(0)} req/s over ${elapsedSec.toFixed(2)}s`);
   console.log(`Latency p50 / p95 / p99 : ${percentile(lat, 50).toFixed(0)} / ${percentile(lat, 95).toFixed(0)} / ${percentile(lat, 99).toFixed(0)} ms`);
   console.log('\n--- Database audit --------------------------------------');
-  console.log(`Initial stock           : ${STOCK}`);
+  console.log(`Initial stock           : ${stockCount}`);
   console.log(`Stock remaining         : ${audit.stock}`);
   console.log(`Units sold (CONFIRMED)  : ${audit.confirmedUnits}`);
   console.log(`Confirmed orders        : ${audit.confirmedOrders}`);
 
-  const oversold = audit.confirmedUnits > STOCK || audit.stock < 0;
-  const consistent = audit.stock + audit.confirmedUnits === STOCK;
+  const oversold = audit.confirmedUnits > stockCount || audit.stock < 0;
+  const consistent = audit.stock + audit.confirmedUnits === stockCount;
   const noDupes = audit.confirmedOrders === created;
   console.log(`\nOversold?               : ${oversold ? 'YES  <-- BUG' : 'NO'}`);
   console.log(`Stock + sold == initial : ${consistent ? 'yes' : 'NO  <-- BUG'}`);
   console.log(`1 order per buyer       : ${noDupes ? 'yes' : 'NO  <-- BUG'}`);
-  process.exitCode = oversold || !consistent || !noDupes || errors > 0 ? 1 : 0;
+  
+  const hasFailed = oversold || !consistent || !noDupes || errors > 0;
+  if (hasFailed) process.exitCode = 1;
+
+  return {
+    product,
+    totalRequests: results.length,
+    created,
+    replays,
+    soldOut,
+    limited,
+    errors,
+    elapsedSec,
+    throughput: Math.round(results.length / elapsedSec),
+    p50: percentile(lat, 50),
+    p95: percentile(lat, 95),
+    p99: percentile(lat, 99),
+    audit,
+    oversold,
+    consistent,
+    noDupes,
+  };
 }
 
-main().catch((e) => {
+runSimulation().catch((e) => {
   console.error(e);
   process.exit(1);
 });

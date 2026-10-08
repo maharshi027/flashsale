@@ -1,9 +1,9 @@
-const config = require('../config');
-const { pool } = require('../db');
-const { AppError } = require('../errors');
-const soldOut = require('./soldOut');
+import config from '../config.js';
+import { pool } from '../db.js';
+import { AppError } from '../errors.js';
+import soldOut from './soldOut.js';
 
-async function getCart(userId) {
+export async function getCart(userId) {
   const { rows } = await pool.query(
     `SELECT ci.product_id, ci.quantity, p.name, p.price_cents, p.stock
        FROM cart_items ci JOIN products p ON p.id = ci.product_id
@@ -26,7 +26,7 @@ async function getCart(userId) {
  * NOTE: adding to a cart does NOT reserve stock - only checkout does.
  * This is the standard e-commerce trade-off (reserving on add-to-cart lets bots hoard stock).
  */
-async function setItem(userId, productId, quantity) {
+export async function setItem(userId, productId, quantity) {
   if (quantity === 0) return removeItem(userId, productId);
   if (quantity > config.maxQtyPerItem) {
     throw new AppError(400, 'LIMIT_EXCEEDED', `Max ${config.maxQtyPerItem} units per product per customer`);
@@ -53,9 +53,9 @@ async function setItem(userId, productId, quantity) {
   return getCart(userId);
 }
 
-async function removeItem(userId, productId) {
+export async function removeItem(userId, productId) {
   await pool.query('DELETE FROM cart_items WHERE user_id = $1 AND product_id = $2', [userId, productId]);
   return getCart(userId);
 }
 
-module.exports = { getCart, setItem, removeItem };
+export default { getCart, setItem, removeItem };

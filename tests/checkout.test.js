@@ -1,4 +1,5 @@
-const h = require('./helpers');
+import h from './helpers.js';
+import config from '../src/config.js';
 const { request, app } = h;
 
 beforeAll(h.setup);
@@ -257,7 +258,6 @@ describe('redis layer', () => {
   });
 
   test('rate limiter returns 429 after too many checkout attempts', async () => {
-    const config = require('../src/config');
     const original = config.rateLimit.max;
     config.rateLimit.max = 3;
     try {

@@ -1,14 +1,14 @@
-const express = require('express');
-const { pool } = require('../db');
-const { cache } = require('../redis');
-const { wrap } = require('../middleware/errorHandler');
-const { requireUser, requireAdmin } = require('../middleware/auth');
-const { rateLimit } = require('../middleware/rateLimit');
-const { AppError } = require('../errors');
-const { positiveInt, nonEmptyString } = require('../validate');
-const productService = require('../services/productService');
-const cartService = require('../services/cartService');
-const orderService = require('../services/orderService');
+import express from 'express';
+import { pool } from '../db.js';
+import { cache } from '../redis.js';
+import { wrap } from '../middleware/errorHandler.js';
+import { requireUser, requireAdmin } from '../middleware/auth.js';
+import { rateLimit } from '../middleware/rateLimit.js';
+import { AppError } from '../errors.js';
+import { positiveInt, nonEmptyString } from '../validate.js';
+import productService from '../services/productService.js';
+import cartService from '../services/cartService.js';
+import orderService from '../services/orderService.js';
 
 const router = express.Router();
 
@@ -17,11 +17,23 @@ router.get(
   '/health',
   wrap(async (_req, res) => {
     await pool.query('SELECT 1');
-    res.json({ status: 'ok', postgres: 'up', redis: cache.isUp() ? 'up' : 'down (running degraded)' });
+    res.json({
+      status: 'ok',
+      postgres: 'up',
+      redis: cache.isUp() ? 'up' : 'down (running degraded - fail-open active)',
+    });
   })
 );
 
 // ---------- users ----------
+router.get(
+  '/users',
+  wrap(async (_req, res) => {
+    const { rows } = await pool.query('SELECT id, name, email FROM users ORDER BY id ASC LIMIT 50');
+    res.json(rows);
+  })
+);
+
 router.post(
   '/users',
   wrap(async (req, res) => {
@@ -100,6 +112,49 @@ router.get(
   })
 );
 
+router.get(
+  '/admin/orders',
+  requireAdmin,
+  wrap(async (_req, res) => {
+    const { rows } = await pool.query(
+      `SELECT o.id, o.user_id, u.name as user_name, u.email as user_email, o.status, o.total_cents, o.created_at, o.cancelled_at,
+              COALESCE(json_agg(json_build_object('product_id', oi.product_id, 'product_name', oi.product_name, 'unit_price_cents', oi.unit_price_cents, 'quantity', oi.quantity)) FILTER (WHERE oi.id IS NOT NULL), '[]') as items
+         FROM orders o
+         JOIN users u ON u.id = o.user_id
+         LEFT JOIN order_items oi ON oi.order_id = o.id
+        GROUP BY o.id, u.name, u.email
+        ORDER BY o.created_at DESC LIMIT 50`
+    );
+    res.json(rows);
+  })
+);
+
+router.post(
+  '/admin/reset',
+  requireAdmin,
+  wrap(async (_req, res) => {
+    await pool.query(
+      'TRUNCATE users, products, cart_items, orders, order_items, idempotency_keys RESTART IDENTITY CASCADE'
+    );
+    if (cache.isUp()) {
+      await cache.del('products:list');
+    }
+    await pool.query(
+      `INSERT INTO products (name, description, price_cents, stock) VALUES
+        ('Wireless Earbuds Pro', 'Active noise cancelling flash special', 199900, 20),
+        ('Smart Watch Ultra', 'Titanium finish & cellular', 349900, 10),
+        ('Mechanical Gaming Keyboard', 'RGB Hot-swappable switches', 249900, 5)`
+    );
+    for (let i = 1; i <= 5; i++) {
+      await pool.query(
+        'INSERT INTO users (name, email) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [`Demo User ${i}`, `user${i}@example.com`]
+      );
+    }
+    res.json({ message: 'System database reset and seeded successfully' });
+  })
+);
+
 // ---------- cart ----------
 router.get(
   '/cart',
@@ -168,4 +223,4 @@ router.post(
   )
 );
 
-module.exports = router;
+export default router;

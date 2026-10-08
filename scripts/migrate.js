@@ -1,15 +1,20 @@
-const fs = require('fs');
-const path = require('path');
-const { pool } = require('../src/db');
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { pool } from '../src/db.js';
 
-async function migrate() {
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+export async function migrate() {
   const sql = fs.readFileSync(path.join(__dirname, '..', 'db', 'schema.sql'), 'utf8');
   await pool.query(sql);
 }
 
-module.exports = { migrate };
+export default { migrate };
 
-if (require.main === module) {
+const isDirectRun = process.argv[1] && path.resolve(process.argv[1]) === __filename;
+if (isDirectRun) {
   migrate()
     .then(() => console.log('Migration complete'))
     .catch((err) => {
