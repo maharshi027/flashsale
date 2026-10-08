@@ -1,13 +1,13 @@
-const config = require('../config');
-const { AppError } = require('../errors');
-const { incrWindow } = require('../redis');
+import config from '../config.js';
+import { AppError } from '../errors.js';
+import { incrWindow } from '../redis.js';
 
 /**
  * Per-user fixed-window rate limiter backed by Redis.
  * Protects the database from bots hammering checkout during a flash sale.
  * Fails open if Redis is down.
  */
-function rateLimit(name) {
+export function rateLimit(name) {
   return async (req, res, next) => {
     try {
       const { max, windowSec } = config.rateLimit; // read lazily so tests can change it
@@ -23,4 +23,4 @@ function rateLimit(name) {
   };
 }
 
-module.exports = { rateLimit };
+export default { rateLimit };

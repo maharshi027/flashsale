@@ -1,5 +1,5 @@
-const config = require('../config');
-const { cache } = require('../redis');
+import config from '../config.js';
+import { cache } from '../redis.js';
 
 /**
  * "Sold-out" flags in Redis let us reject doomed checkouts WITHOUT touching
@@ -11,18 +11,18 @@ const { cache } = require('../redis');
  */
 const key = (id) => `soldout:${id}`;
 
-async function markSoldOut(productIds) {
+export async function markSoldOut(productIds) {
   await Promise.all(productIds.map((id) => cache.set(key(id), '1', config.soldOutFlagTtlSec)));
 }
 
-async function clear(productIds) {
+export async function clear(productIds) {
   await cache.del(...productIds.map(key));
 }
 
-async function filterSoldOut(productIds) {
+export async function filterSoldOut(productIds) {
   if (productIds.length === 0) return [];
   const flags = await cache.mget(productIds.map(key));
   return productIds.filter((_, i) => flags[i]);
 }
 
-module.exports = { markSoldOut, clear, filterSoldOut };
+export default { markSoldOut, clear, filterSoldOut };

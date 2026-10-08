@@ -1,10 +1,12 @@
-const { Pool, types } = require('pg');
-const config = require('./config');
+import pg from 'pg';
+import config from './config.js';
+
+const { Pool, types } = pg;
 
 // BIGINT (int8) columns come back as strings by default; our values fit in a JS number.
 types.setTypeParser(20, (v) => parseInt(v, 10));
 
-const pool = new Pool({ connectionString: config.databaseUrl, max: config.dbPoolMax });
+export const pool = new Pool({ connectionString: config.databaseUrl, max: config.dbPoolMax });
 pool.on('error', (err) => console.error('Unexpected PostgreSQL pool error:', err.message));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -15,7 +17,7 @@ const RETRYABLE = new Set(['40001', '40P01']); // serialization_failure, deadloc
  * Rolls back on any error. Retries automatically on deadlock / serialization
  * failures, which are *expected* under heavy concurrency and safe to retry.
  */
-async function withTransaction(fn, { retries = 3 } = {}) {
+export async function withTransaction(fn, { retries = 3 } = {}) {
   for (let attempt = 0; ; attempt++) {
     const client = await pool.connect();
     try {
@@ -40,4 +42,4 @@ async function withTransaction(fn, { retries = 3 } = {}) {
   }
 }
 
-module.exports = { pool, withTransaction };
+export default { pool, withTransaction };

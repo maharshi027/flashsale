@@ -1,7 +1,7 @@
-const { AppError } = require('../errors');
+import { AppError } from '../errors.js';
 
 // eslint-disable-next-line no-unused-vars
-function errorHandler(err, req, res, _next) {
+export function errorHandler(err, req, res, _next) {
   if (err instanceof AppError) {
     return res.status(err.status).json({
       error: { code: err.code, message: err.message, details: err.details },
@@ -14,6 +14,6 @@ function errorHandler(err, req, res, _next) {
   res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } });
 }
 
-const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+export const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
-module.exports = { errorHandler, wrap };
+export default { errorHandler, wrap };
